@@ -70,15 +70,7 @@ The repository includes a GitHub Actions workflow configuration in `.github/work
 3. Generates and uploads test coverage reports
 4. Automatically deploys to Vercel (when pushing to main/master)
 
-### Setting up Vercel Deployment
 
-To enable automatic deployments to Vercel, you need to:
-
-1. Create a Vercel account and link your repository
-2. Create a Vercel project for your application
-3. Generate a Vercel token and add it as a secret in your GitHub repository:
-   - Go to Settings → Secrets → Actions
-   - Add a new secret named `VERCEL_TOKEN` with your Vercel token
 
 ## Technologies Used
 

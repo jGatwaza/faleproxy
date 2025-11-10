@@ -2,7 +2,7 @@ name: Faleproxy CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, testfix ]
   pull_request:
     branches: [ main, master ]
 
@@ -32,41 +32,100 @@ jobs:
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
       if: matrix.node-version == '20.x'
+      if: matrix.node-version == '20.x'
       with:
         name: coverage-report
         path: coverage/
         
-  # Optional: Remove this deploy job if using Vercel's GitHub integration
-  # deploy:
-  #   needs: test
-  #   if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-  #   runs-on: ubuntu-latest
-  #   
-  #   steps:
-  #   - uses: actions/checkout@v4
-  # 
-  #   - name: Setup Node.js
-  #     uses: actions/setup-node@v4
-  #     with:
-  #       node-version: '18.x'
-  #       
-  #   - name: Install Vercel CLI
-  #     run: npm install --global vercel@latest
-  #     
-  #   - name: Pull Vercel Environment Information
-  #     run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-  #     env:
-  #       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  #       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  #     
-  #   - name: Build Project Artifacts
-  #     run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-  #     env:
-  #       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  #       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  #     
-  #   - name: Deploy Project Artifacts to Vercel
-  #     run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-  #     env:
-  #       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  #       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  # Production deployment for main/master branches
+  deploy-production:
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        
+    - name: Install Vercel CLI
+      run: npm install --global vercel@latest
+      
+    - name: Pull Vercel Environment Information
+      run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      
+    - name: Build Project Artifacts
+      run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      
+    - name: Deploy to Production
+      run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # Preview deployment for testfix branch
+  deploy-preview:
+    needs: test
+    if: github.ref == 'refs/heads/testfix'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        
+    - name: Install Vercel CLI
+      run: npm install --global vercel@latest
+      
+    - name: Pull Vercel Environment Information
+      run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      
+    - name: Build Project Artifacts
+      run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      
+    - name: Deploy to Preview
+      id: deploy
+      run: |
+        DEPLOYMENT_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+        echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        
+    - name: Comment Preview URL
+      uses: actions/github-script@v7
+      if: github.event_name == 'push'
+      with:
+        script: |
+          const deploymentUrl = '${{ steps.deploy.outputs.deployment-url }}';
+          
+          // Create a comment on the latest commit
+          await github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🚀 **Preview Deployment Ready!**
+            
+            Your changes from the \`testfix\` branch have been deployed to:
+            **${deploymentUrl}**
+            
+            Test your changes and merge to main when ready! ✨`
+          });
